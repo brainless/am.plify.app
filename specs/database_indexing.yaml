@@ -1,0 +1,149 @@
+indexes:
+  users:
+    primary:
+      - field: "id"
+        type: "primary_key"
+    
+    unique:
+      - field: "email"
+        type: "unique"
+        purpose: "login lookup, prevent duplicates"
+    
+    standard:
+      - field: "created_at"
+        purpose: "user registration analytics"
+
+  products:
+    primary:
+      - field: "id"
+        type: "primary_key"
+    
+    foreign_keys:
+      - field: "user_id"
+        purpose: "find products by owner"
+    
+    standard:
+      - field: "created_at"
+        purpose: "sort by newest/oldest"
+      
+      - field: "business_domains"
+        type: "json_array"
+        purpose: "filter by business domain tags"
+      
+      - field: "help_types_needed"
+        type: "json_array"
+        purpose: "filter by help type"
+      
+      - field: "trial_access_type"
+        purpose: "filter by trial access options"
+
+  help_submissions:
+    primary:
+      - field: "id"
+        type: "primary_key"
+    
+    foreign_keys:
+      - field: "user_id"
+        purpose: "find submissions by helper"
+      
+      - field: "product_id"
+        purpose: "find submissions for product"
+    
+    standard:
+      - field: "created_at"
+        purpose: "daily limit tracking, activity feed"
+      
+      - field: "activity_type"
+        purpose: "analytics and filtering"
+    
+    composite:
+      - fields: ["user_id", "created_at"]
+        purpose: "daily activity limits per user"
+      
+      - fields: ["product_id", "created_at"]
+        purpose: "recent help for product page"
+
+  user_points:
+    primary:
+      - field: "user_id"
+        type: "primary_key"
+    
+    standard:
+      - field: "points_balance"
+        purpose: "leaderboards, point-based features"
+      
+      - field: "updated_at"
+        purpose: "recent activity tracking"
+
+  trial_requests:
+    primary:
+      - field: "id"
+        type: "primary_key"
+    
+    foreign_keys:
+      - field: "requester_id"
+        purpose: "find requests by user"
+      
+      - field: "product_id"
+        purpose: "find requests for product"
+    
+    composite:
+      - fields: ["requester_id", "product_id"]
+        type: "unique"
+        purpose: "prevent duplicate requests"
+
+  direct_messages:
+    primary:
+      - field: "id"
+        type: "primary_key"
+    
+    foreign_keys:
+      - field: "sender_id"
+        purpose: "find sent messages"
+      
+      - field: "recipient_id"
+        purpose: "find received messages"
+      
+      - field: "product_id"
+        purpose: "find messages about product"
+    
+    standard:
+      - field: "created_at"
+        purpose: "message ordering"
+    
+    composite:
+      - fields: ["recipient_id", "read_at"]
+        purpose: "find unread messages efficiently"
+
+  notifications:
+    primary:
+      - field: "id"
+        type: "primary_key"
+    
+    foreign_keys:
+      - field: "user_id"
+        purpose: "find user's notifications"
+    
+    standard:
+      - field: "created_at"
+        purpose: "recent notifications ordering"
+      
+      - field: "read_at"
+        purpose: "unread notifications filter"
+    
+    composite:
+      - fields: ["user_id", "read_at", "created_at"]
+        purpose: "efficiently get recent unread notifications"
+
+performance_considerations:
+  - "Add indexes after identifying slow queries"
+  - "Monitor index usage with EXPLAIN QUERY PLAN"
+  - "Remove unused indexes to improve write performance"
+  - "Consider partial indexes for frequently filtered null values"
+  
+query_patterns:
+  - "List products with filters (business_domains, help_types, trial_access)"
+  - "User's recent submissions for daily limits"
+  - "Product's recent help submissions for display"
+  - "Unread notifications for user"
+  - "Trial requests for product owner"

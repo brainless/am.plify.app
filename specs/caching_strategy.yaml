@@ -1,0 +1,89 @@
+cache_system: "redis"
+
+cache_patterns:
+  read_through:
+    description: "All database reads go through cache first"
+    implementation: "Check cache -> If miss, query DB -> Store in cache -> Return data"
+  
+  write_through:
+    description: "Database writes invalidate related cache keys"
+    implementation: "Write to DB -> Invalidate cache keys -> Next read repopulates cache"
+
+cached_data:
+  product_listings:
+    key_pattern: "products:page:{page}:filter:{filter_hash}"
+    ttl: "15 minutes"
+    invalidate_on:
+      - "new product created"
+      - "product updated"
+      - "product deleted"
+  
+  product_details:
+    key_pattern: "product:{product_id}"
+    ttl: "30 minutes"
+    invalidate_on:
+      - "product updated"
+      - "new help submission"
+  
+  user_profile:
+    key_pattern: "user:{user_id}"
+    ttl: "1 hour"
+    invalidate_on:
+      - "user profile updated"
+      - "points changed"
+  
+  business_domains:
+    key_pattern: "domains:all"
+    ttl: "24 hours"
+    invalidate_on:
+      - "application restart"
+      - "manual cache clear"
+  
+  help_activities:
+    key_pattern: "activities:all"
+    ttl: "24 hours"
+    invalidate_on:
+      - "application restart"
+      - "manual cache clear"
+  
+  filter_options:
+    key_pattern: "filters:all"
+    ttl: "24 hours"
+    invalidate_on:
+      - "application restart"
+
+cache_invalidation:
+  strategies:
+    - name: "direct_invalidation"
+      description: "Immediately delete specific cache keys after writes"
+    
+    - name: "tag_based"
+      description: "Group related cache keys with tags for bulk invalidation"
+      example: "Tag all product-related cache with 'product:{id}'"
+
+performance_targets:
+  cache_hit_ratio: "> 80%"
+  cache_response_time: "< 5ms"
+  database_query_reduction: "> 70%"
+
+redis_configuration:
+  memory_policy: "allkeys-lru"
+  max_memory: "512MB"
+  persistence: "disabled" # Cache only, not critical data
+  
+connection_settings:
+  pool_size: 10
+  timeout: "5 seconds"
+  retry_attempts: 3
+
+monitoring:
+  metrics:
+    - "Cache hit/miss ratios"
+    - "Cache memory usage"
+    - "Response time improvements"
+    - "Database query reduction"
+  
+  alerts:
+    - "Cache hit ratio < 70%"
+    - "Redis connection failures"
+    - "Memory usage > 90%"

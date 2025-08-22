@@ -1,0 +1,50 @@
+domains:
+  - id: "saas_software"
+    label: "SaaS & Software"
+    description: "Software as a Service and software products"
+
+  - id: "ecommerce"
+    label: "E-commerce"
+    description: "Online retail and marketplace businesses"
+
+  - id: "fintech"
+    label: "Fintech"
+    description: "Financial technology and services"
+
+  - id: "healthtech"
+    label: "Health & Wellness"
+    description: "Healthcare, fitness, and wellness products"
+
+  - id: "edtech"
+    label: "Education"
+    description: "Educational technology and learning platforms"
+
+  - id: "marketing_tools"
+    label: "Marketing & Analytics"
+    description: "Marketing automation, analytics, and growth tools"
+
+  - id: "productivity"
+    label: "Productivity"
+    description: "Productivity tools and workplace software"
+
+  - id: "design_creative"
+    label: "Design & Creative"
+    description: "Design tools, creative services, and media"
+
+  - id: "developer_tools"
+    label: "Developer Tools"
+    description: "Development tools, APIs, and technical services"
+
+  - id: "consulting_services"
+    label: "Consulting & Services"
+    description: "Professional services and consulting"
+
+  - id: "mobile_apps"
+    label: "Mobile Apps"
+    description: "Mobile applications and games"
+
+  - id: "content_media"
+    label: "Content & Media"
+    description: "Content creation, publishing, and media platforms"
+
+max_tags_per_product: 5

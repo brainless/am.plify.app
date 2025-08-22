@@ -1,0 +1,79 @@
+filters:
+  - id: "business_domain"
+    label: "Business Domain"
+    type: "multi_select"
+    options: "business_domains.yaml"
+    description: "Filter by business categories"
+
+  - id: "help_type"
+    label: "Help Type Needed"
+    type: "multi_select"
+    options:
+      - id: "social_media"
+        label: "Social Media"
+      - id: "product_reviews"
+        label: "Product Reviews"
+      - id: "community_posts"
+        label: "Community Posts"
+    description: "Type of help the product needs"
+
+  - id: "trial_access"
+    label: "Trial Access"
+    type: "single_select"
+    options:
+      - id: "any"
+        label: "Any"
+      - id: "free_trial"
+        label: "Free Trial Available"
+      - id: "demo_account"
+        label: "Demo Account"
+      - id: "contact_for_access"
+        label: "Contact Required"
+      - id: "no_trial"
+        label: "No Trial Needed"
+    description: "How you can try the product"
+
+  - id: "points_range"
+    label: "Points Available"
+    type: "range"
+    min: 1
+    max: 50
+    default_min: 1
+    default_max: 50
+    description: "Points range for helping this product"
+
+  - id: "recently_added"
+    label: "Recently Added"
+    type: "single_select"
+    options:
+      - id: "any"
+        label: "Any time"
+      - id: "last_week"
+        label: "Last week"
+      - id: "last_month"
+        label: "Last month"
+    description: "When the product was added"
+
+sort_options:
+  - id: "newest"
+    label: "Newest First"
+    field: "created_at"
+    direction: "desc"
+
+  - id: "oldest"
+    label: "Oldest First"
+    field: "created_at"
+    direction: "asc"
+
+  - id: "highest_points"
+    label: "Highest Points"
+    field: "max_points"
+    direction: "desc"
+
+  - id: "most_help_needed"
+    label: "Most Help Needed"
+    field: "help_requests_count"
+    direction: "desc"
+
+default_sort: "newest"
+items_per_page: 20

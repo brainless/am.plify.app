@@ -1,0 +1,73 @@
+priority: "integration_and_e2e"
+
+backend_testing:
+  integration_tests:
+    focus:
+      - "API endpoints with database"
+      - "Authentication flows"
+      - "Points system transactions"
+      - "File upload handling"
+      - "Email sending"
+    
+    setup:
+      - "Test database (SQLite in memory)"
+      - "Mock external services (Resend)"
+      - "Test file storage"
+    
+    key_scenarios:
+      - "User registration with email verification"
+      - "Social login flows"
+      - "Product creation and listing"
+      - "Help submission and point awards"
+      - "Trial access request workflow"
+      - "Account deletion"
+
+  unit_tests:
+    minimal_focus:
+      - "Business logic functions"
+      - "Validation helpers"
+      - "Point calculation logic"
+
+frontend_testing:
+  e2e_tests:
+    tool: "playwright"
+    scenarios:
+      - "Complete user registration flow"
+      - "Create and publish product listing"
+      - "Browse and filter products"
+      - "Submit help activity with screenshot"
+      - "Request trial access and messaging"
+    
+    environments:
+      - "Local development"
+      - "Staging (before production deploy)"
+
+  component_tests:
+    minimal:
+      - "Form validation"
+      - "File upload components"
+
+test_data:
+  seeding:
+    - "Sample users (founders)"
+    - "Sample products across domains"
+    - "Help activities definitions"
+    - "Business domain tags"
+  
+  fixtures:
+    - "Test images for uploads"
+    - "Sample social media links"
+
+ci_integration:
+  run_on:
+    - "Pull requests"
+    - "Main branch pushes"
+  
+  requirements:
+    - "All integration tests pass"
+    - "Key e2e tests pass"
+    - "No test failures block deployment"
+
+coverage_goals:
+  backend: "Focus on API endpoints, not percentage"
+  frontend: "Critical user flows only"

@@ -1,0 +1,90 @@
+basic_fields:
+  - id: "product_name"
+    label: "Product/Service Name"
+    type: "text"
+    required: true
+    max_length: 100
+
+  - id: "description"
+    label: "What problem does this solve?"
+    type: "textarea"
+    required: true
+    max_length: 500
+
+  - id: "target_audience"
+    label: "Who is your audience?"
+    type: "textarea"
+    required: true
+    max_length: 300
+
+  - id: "audience_location"
+    label: "Where is your audience?"
+    type: "text"
+    required: true
+    max_length: 100
+
+link_fields:
+  - id: "website"
+    label: "Website URL"
+    type: "url"
+    required: true
+
+  - id: "twitter"
+    label: "Twitter/X Account"
+    type: "url"
+    required: false
+    placeholder: "https://twitter.com/username"
+
+  - id: "linkedin"
+    label: "LinkedIn Page"
+    type: "url"
+    required: false
+    placeholder: "https://linkedin.com/company/name"
+
+  - id: "instagram"
+    label: "Instagram Account"
+    type: "url"
+    required: false
+    placeholder: "https://instagram.com/username"
+
+  - id: "github"
+    label: "GitHub Repository"
+    type: "url"
+    required: false
+    placeholder: "https://github.com/username/repo"
+
+  - id: "youtube"
+    label: "YouTube Channel"
+    type: "url"
+    required: false
+    placeholder: "https://youtube.com/@channel"
+
+help_types:
+  - id: "social_media"
+    label: "Social Media Engagement"
+    description: "Share and engage on social platforms"
+
+  - id: "product_reviews"
+    label: "Product Reviews"
+    description: "Write reviews on relevant platforms"
+
+  - id: "community_posts"
+    label: "Community Discussions"
+    description: "Participate in relevant online communities"
+
+trial_access:
+  - id: "free_trial"
+    label: "Free Trial Available"
+    description: "Provide free trial access to helpers"
+
+  - id: "demo_account"
+    label: "Demo Account"
+    description: "Share demo credentials with helpers"
+
+  - id: "contact_for_access"
+    label: "Contact for Access"
+    description: "Helpers can request special access"
+
+  - id: "no_trial"
+    label: "No Trial Needed"
+    description: "Product is publicly accessible"

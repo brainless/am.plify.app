@@ -1,0 +1,78 @@
+database_backup:
+  primary:
+    tool: "litestream"
+    destination: "S3 compatible storage"
+    frequency: "continuous replication"
+    retention: "30 days"
+  
+  verification:
+    schedule: "weekly"
+    process: "restore to test environment"
+
+file_backup:
+  user_uploads:
+    method: "rsync"
+    destination: "S3 bucket"
+    schedule: "daily"
+    retention: "90 days"
+  
+  application_data:
+    method: "tar + gzip"
+    includes:
+      - "configuration files"
+      - "environment variables"
+      - "nginx config"
+    schedule: "daily"
+
+disaster_scenarios:
+  server_failure:
+    steps:
+      1. "Provision new server with Terraform"
+      2. "Restore database from LiteStream"
+      3. "Restore uploaded files from S3"
+      4. "Deploy latest application version"
+      5. "Update DNS if needed"
+    rto: "2-4 hours"
+    rpo: "< 1 minute"
+  
+  data_corruption:
+    steps:
+      1. "Stop application"
+      2. "Restore database from known good backup"
+      3. "Verify data integrity"
+      4. "Resume application"
+    rto: "30 minutes"
+  
+  accidental_deletion:
+    steps:
+      1. "Identify deletion timestamp"
+      2. "Restore from point-in-time backup"
+      3. "Verify restored data"
+
+monitoring:
+  backup_health:
+    - "LiteStream replication status"
+    - "S3 upload success rates"
+    - "Disk space monitoring"
+  
+  alerts:
+    - "Backup failures"
+    - "Replication lag > 5 minutes"
+    - "Storage space < 20%"
+
+recovery_testing:
+  schedule: "monthly"
+  process:
+    1. "Create test server"
+    2. "Restore from backup"
+    3. "Verify application functionality"
+    4. "Document any issues"
+    5. "Destroy test server"
+
+documentation:
+  location: "specs/disaster_recovery_runbook.md"
+  includes:
+    - "Step-by-step recovery procedures"
+    - "Emergency contact information"
+    - "Access credentials locations"
+    - "Recovery time estimates"

@@ -1,0 +1,70 @@
+submission_fields:
+  - id: "activity_type"
+    label: "Type of Help"
+    type: "select"
+    required: true
+    options: "help_activities.yaml"
+    description: "Select what type of help you provided"
+
+  - id: "screenshot"
+    label: "Screenshot"
+    type: "file"
+    required: true
+    accept: "image/*"
+    max_size_mb: 5
+    description: "Upload screenshot of your help activity"
+
+  - id: "link_url"
+    label: "Link to Activity"
+    type: "url"
+    required: true
+    description: "Direct link to your post/comment/review"
+
+  - id: "description"
+    label: "Brief Description"
+    type: "textarea"
+    required: false
+    max_length: 200
+    description: "Optional: Briefly describe what you did"
+
+  - id: "platform"
+    label: "Platform Used"
+    type: "select"
+    required: false
+    options:
+      - id: "reddit"
+        label: "Reddit"
+      - id: "twitter"
+        label: "Twitter/X"
+      - id: "linkedin"
+        label: "LinkedIn"
+      - id: "facebook"
+        label: "Facebook"
+      - id: "instagram"
+        label: "Instagram"
+      - id: "youtube"
+        label: "YouTube"
+      - id: "other"
+        label: "Other"
+    description: "Which platform did you use"
+
+validation_rules:
+  screenshot:
+    - "File must be an image (PNG, JPG, GIF, WebP)"
+    - "File size must be under 5MB"
+    - "Image must be readable"
+  
+  link_url:
+    - "Must be a valid URL"
+    - "Should link to the actual activity"
+  
+  activity_type:
+    - "Must match available activity types"
+    - "User must be eligible for this activity type"
+
+submission_flow:
+  1. "Select product to help"
+  2. "Choose activity type"
+  3. "Complete the activity on external platform"
+  4. "Return to submit proof with screenshot and link"
+  5. "Points awarded automatically unless disputed"

@@ -1,0 +1,79 @@
+infrastructure:
+  server:
+    provider: "scaleway"
+    size: "4GB RAM"
+    os: "Ubuntu 22.04 LTS"
+    management: 
+      - "terraform"
+      - "ansible"
+  
+  domains:
+    api: "api.plify.app"
+    frontend: "am.plify.app"
+    redirect: "www.plify.app -> am.plify.app"
+  
+  ssl:
+    provider: "letsencrypt"
+    cloudflare: "end-to-end HTTPS"
+
+services:
+  nginx:
+    purpose: "reverse proxy"
+    config: "proxy to backend app"
+  
+  backend:
+    runtime: "rust binary"
+    port: 8080
+    env_file: ".env"
+  
+  database:
+    type: "sqlite"
+    location: "mounted storage"
+    backup: "litestream to S3"
+  
+  redis:
+    purpose: "caching"
+    port: 6379
+
+storage:
+  uploads:
+    location: "mounted storage"
+    path: "/var/uploads"
+    backup: "rsync to S3"
+  
+  image_processing:
+    tools:
+      - "imagemagick"
+      - "libvips"
+    operations:
+      - "resize screenshots"
+      - "compress images"
+
+ci_cd:
+  platform: "github_actions"
+  workflows:
+    - name: "test_and_build"
+      triggers: ["push", "pull_request"]
+      steps:
+        - "run tests"
+        - "build backend"
+        - "build frontend"
+    
+    - name: "deploy_production"
+      triggers: ["push to main"]
+      steps:
+        - "run migrations"
+        - "deploy backend"
+        - "deploy to cloudflare pages"
+
+environment_variables:
+  backend:
+    - "DATABASE_URL"
+    - "REDIS_URL"
+    - "RESEND_API_KEY"
+    - "JWT_SECRET"
+    - "UPLOAD_PATH"
+  
+  frontend:
+    - "VITE_API_URL"
+    - "VITE_SENTRY_DSN"

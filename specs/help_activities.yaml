@@ -1,0 +1,55 @@
+activities:
+  - id: "reddit_post_comment"
+    label: "Comment on Reddit post"
+    description: "Engage with a relevant Reddit post by commenting about the product/service"
+    points: 5
+    requirements:
+      - "Screenshot of your comment"
+      - "Link to the Reddit post"
+    category: "social_media"
+
+  - id: "twitter_reply"
+    label: "Reply on Twitter/X thread"
+    description: "Reply to a relevant Twitter/X thread mentioning the product/service"
+    points: 3
+    requirements:
+      - "Screenshot of your reply"
+      - "Link to the original tweet"
+    category: "social_media"
+
+  - id: "linkedin_comment"
+    label: "Comment on LinkedIn post"
+    description: "Engage with a LinkedIn post by commenting about the product/service"
+    points: 4
+    requirements:
+      - "Screenshot of your comment"
+      - "Link to the LinkedIn post"
+    category: "social_media"
+
+  - id: "product_review"
+    label: "Write product review"
+    description: "Write a genuine review on the product's platform or review sites"
+    points: 8
+    requirements:
+      - "Screenshot of your review"
+      - "Link to the review page"
+    category: "review"
+
+  - id: "social_share"
+    label: "Share on social media"
+    description: "Share the product/service on your social media with genuine commentary"
+    points: 6
+    requirements:
+      - "Screenshot of your post"
+      - "Link to your post (if public)"
+    category: "social_media"
+
+daily_limits:
+  max_activities_per_day: 3
+  max_points_per_day: 24
+
+categories:
+  - id: "social_media"
+    label: "Social Media Engagement"
+  - id: "review"
+    label: "Product Reviews"
