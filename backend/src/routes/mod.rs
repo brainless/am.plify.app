@@ -1,5 +1,5 @@
 use actix_web::{web, HttpResponse, Result};
-use serde_json::json;
+use crate::types::{HealthResponse, HelloResponse};
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.route("/health", web::get().to(health_check))
@@ -7,16 +7,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
 }
 
 async fn health_check() -> Result<HttpResponse> {
-    Ok(HttpResponse::Ok().json(json!({
-        "status": "ok",
-        "timestamp": chrono::Utc::now().to_rfc3339()
-    })))
+    let response = HealthResponse {
+        status: "ok".to_string(),
+        timestamp: chrono::Utc::now().to_rfc3339(),
+    };
+    Ok(HttpResponse::Ok().json(response))
 }
 
 async fn hello_world() -> Result<HttpResponse> {
-    Ok(HttpResponse::Ok().json(json!({
-        "message": "Hello from Amplify Backend!",
-        "service": "amplify-api",
-        "version": "0.1.0"
-    })))
+    let response = HelloResponse {
+        message: "Hello from Amplify Backend!".to_string(),
+        service: "amplify-api".to_string(),
+        version: "0.1.0".to_string(),
+    };
+    Ok(HttpResponse::Ok().json(response))
 }

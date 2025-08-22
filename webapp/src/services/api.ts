@@ -1,3 +1,5 @@
+import type { HealthResponse, HelloResponse, ApiError } from '../types/generated';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
 export interface ApiResponse<T> {
@@ -5,16 +7,8 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
-export interface HealthResponse {
-  status: string;
-  timestamp: string;
-}
-
-export interface HelloResponse {
-  message: string;
-  service: string;
-  version: string;
-}
+// Re-export generated types for convenience
+export type { HealthResponse, HelloResponse, ApiError };
 
 class ApiService {
   private async request<T>(endpoint: string): Promise<ApiResponse<T>> {
