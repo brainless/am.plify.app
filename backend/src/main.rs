@@ -13,9 +13,13 @@ async fn main() -> std::io::Result<()> {
     println!("Starting Amplify Backend on port {}", port);
     
     HttpServer::new(move || {
-        let cors = Cors::default()
-            .allowed_origin("http://localhost:3000")
-            .allowed_origin("https://am.plify.app")
+        let mut cors = Cors::default();
+        
+        for origin in &config.cors_allowed_origins {
+            cors = cors.allowed_origin(origin);
+        }
+        
+        let cors = cors
             .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
             .allowed_headers(vec!["Content-Type", "Authorization"])
             .max_age(3600);
