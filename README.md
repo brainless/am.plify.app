@@ -64,7 +64,7 @@ Note: In this network we may use bots and AI based tools to find content but the
 ## Technical Documentation
 
 ### Product Specifications
-- **[Technical Overview](specs/TECHNICAL_OVERVIEW.md)** - Complete technical requirements and architecture decisions
+- **[Technical Overview](specs/PROJECT.md)** - Complete technical requirements and architecture decisions
 - **[Product Thoughts](specs/THOUGHTS.txt)** - Original concept and detailed requirements
 
 ### System Configuration

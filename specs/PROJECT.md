@@ -1,4 +1,4 @@
-# Technical Overview
+# am.plify.app: Technical Overview
 
 We are creating a web application with a backend app and a browser app.
 
