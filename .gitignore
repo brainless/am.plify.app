@@ -1,12 +1,17 @@
+# Dependencies
+node_modules/
+webapp/node_modules/
+
+# Build outputs
+dist/
+build/
+webapp/dist/
+webapp/build/
+
 # Backend
 backend/target/
 backend/Cargo.lock
-
-# Webapp
-webapp/node_modules/
-webapp/dist/
-webapp/package-lock.json
-webapp/.env
+**/*.rs.bk
 
 # IDEs and editors
 .vscode/
@@ -29,6 +34,11 @@ Thumbs.db
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*.local
+webapp/.env
+
+# Editor files
+*~
 
 # Logs
 logs
@@ -38,3 +48,19 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
+# Temporary files
+*.tmp
+*.temp
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache
+.cache/
+.parcel-cache/
+
+# Uploads
+uploads/
