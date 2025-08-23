@@ -21,8 +21,10 @@ impl Config {
             .collect();
 
         Config {
-            database_url: env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./amplify.db".to_string()),
-            redis_url: env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string()),
+            database_url: env::var("DATABASE_URL")
+                .unwrap_or_else(|_| "sqlite:./amplify.db".to_string()),
+            redis_url: env::var("REDIS_URL")
+                .unwrap_or_else(|_| "redis://localhost:6379".to_string()),
             jwt_secret: env::var("JWT_SECRET").unwrap_or_else(|_| "dev-secret-key".to_string()),
             upload_path: env::var("UPLOAD_PATH").unwrap_or_else(|_| "./uploads".to_string()),
             port: env::var("PORT")
