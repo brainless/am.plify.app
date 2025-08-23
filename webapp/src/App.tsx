@@ -1,9 +1,17 @@
-import { createSignal, onMount } from 'solid-js';
-import { apiService, type HelloResponse, type HealthResponse } from './services/api';
+import { createSignal, onMount, Component } from 'solid-js';
+import {
+  apiService,
+  type HelloResponse,
+  type HealthResponse,
+} from './services/api';
 
-function App() {
-  const [healthStatus, setHealthStatus] = createSignal<HealthResponse | null>(null);
-  const [helloMessage, setHelloMessage] = createSignal<HelloResponse | null>(null);
+const App: Component = () => {
+  const [healthStatus, setHealthStatus] = createSignal<HealthResponse | null>(
+    null
+  );
+  const [helloMessage, setHelloMessage] = createSignal<HelloResponse | null>(
+    null
+  );
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
 
@@ -19,7 +27,7 @@ function App() {
       setHealthStatus(healthResult.data);
     }
 
-    // Test hello endpoint  
+    // Test hello endpoint
     const helloResult = await apiService.getHello();
     if (helloResult.error) {
       setError(`Hello API failed: ${helloResult.error}`);
@@ -34,13 +42,17 @@ function App() {
     <div class="min-h-screen bg-gray-100 py-8">
       <div class="max-w-4xl mx-auto px-4">
         <header class="text-center mb-8">
-          <h1 class="text-4xl font-bold text-gray-900 mb-2">Amplify</h1>
-          <p class="text-lg text-gray-600">Help founders amplify their products</p>
+          <h1 class="text-4xl font-bold text-gray-900 mb-2">am.plify.app</h1>
+          <p class="text-lg text-gray-600">
+            Help founders amplify their products
+          </p>
         </header>
 
         <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 class="text-2xl font-semibold mb-4">Backend API Integration Test</h2>
-          
+          <h2 class="text-2xl font-semibold mb-4">
+            Backend API Integration Test
+          </h2>
+
           {loading() && (
             <div class="text-center py-4">
               <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -50,8 +62,12 @@ function App() {
 
           {error() && (
             <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-              <p><strong>Error:</strong> {error()}</p>
-              <p class="text-sm mt-1">Make sure the backend is running on http://localhost:8080</p>
+              <p>
+                <strong>Error:</strong> {error()}
+              </p>
+              <p class="text-sm mt-1">
+                Make sure the backend is running on http://localhost:8080
+              </p>
             </div>
           )}
 
@@ -84,6 +100,6 @@ function App() {
       </div>
     </div>
   );
-}
+};
 
 export default App;

@@ -1,5 +1,5 @@
-use actix_web::{web, HttpResponse, Result};
 use crate::types::{HealthResponse, HelloResponse};
+use actix_web::{web, HttpResponse, Result};
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.route("/health", web::get().to(health_check))
