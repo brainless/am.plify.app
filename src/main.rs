@@ -5,7 +5,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
 async fn main() -> eframe::Result {
-    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+    env_logger::Builder::from_default_env().filter_level(log::LevelFilter::Info).init(); // Log to stderr (defaults to info level).
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -27,9 +27,19 @@ pub struct DesktopGuiApp {
     search_text: String,
     status: String,
     #[serde(skip)]
-    sender: Option<tokio::sync::mpsc::UnboundedSender<String>>,
+    sender: Option<tokio::sync::mpsc::UnboundedSender<(String, Option<headless_chrome::Browser>)>>,
     #[serde(skip)]
-    receiver: Option<tokio::sync::mpsc::UnboundedReceiver<String>>,
+    receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(String, Option<headless_chrome::Browser>)>>,
+    #[serde(skip)]
+    browser: Option<headless_chrome::Browser>,
+    current_page: Page,
+    chrome_profile_path: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, PartialEq)]
+enum Page {
+    Main,
+    Settings,
 }
 
 impl Default for DesktopGuiApp {
@@ -39,6 +49,9 @@ impl Default for DesktopGuiApp {
             status: String::new(),
             sender: None,
             receiver: None,
+            browser: None,
+            current_page: Page::Main,
+            chrome_profile_path: String::new(),
         }
     }
 }
@@ -68,8 +81,11 @@ impl eframe::App for DesktopGuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Poll for messages
         if let Some(rx) = &mut self.receiver {
-            while let Ok(msg) = rx.try_recv() {
+            while let Ok((msg, browser)) = rx.try_recv() {
                 self.status = msg;
+                if browser.is_some() {
+                    self.browser = browser;
+                }
             }
         }
 
@@ -94,48 +110,146 @@ impl eframe::App for DesktopGuiApp {
                     });
                 }
             }
+            
+            // Add spacer and Settings button at bottom
+            ui.add_space(ui.available_height() - 30.0);
+            if ui.button("Settings").clicked() {
+                log::info!("Settings button clicked");
+                self.current_page = Page::Settings;
+            }
         });
 
         // Main content column, responsive
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.label(&self.status);
+            match self.current_page {
+                Page::Main => {
+                    ui.label(&self.status);
+                }
+                Page::Settings => {
+                    ui.heading("Settings");
+                    
+                    ui.separator();
+                    ui.heading("Browser profile");
+                    ui.label("Point to the path where your Chrome user data is stored:");
+                    
+                    // Detect OS and show appropriate Chrome path
+                    let detected_path = detect_chrome_profile_path();
+                    if let Some(path) = detected_path {
+                        ui.label(format!("Detected Chrome path for your OS:"));
+                        ui.monospace(path);
+                    } else {
+                        ui.label("Could not detect Chrome path. Here are the default locations:");
+                        ui.monospace("Windows: C:\\Users\\YourUsername\\AppData\\Local\\Google\\Chrome\\User Data");
+                        ui.monospace("Mac: ~/Library/Application Support/Google/Chrome");
+                        ui.monospace("Linux: ~/.config/google-chrome");
+                    }
+                    
+                    ui.add_space(10.0);
+                    
+if ui.button("Select Chrome Profile Folder").clicked() {
+                        let mut dialog = rfd::FileDialog::new()
+                            .set_title("Select Chrome Profile Directory");
+                        
+                        // Set the detected path as the starting directory
+                        let detected_path = detect_chrome_profile_path();
+                        if let Some(path_str) = detected_path {
+                            let path = std::path::Path::new(&path_str);
+                            if path.exists() {
+                                dialog = dialog.set_directory(path);
+                            }
+                        }
+                        
+                        if let Some(path) = dialog.pick_folder() {
+                            self.chrome_profile_path = path.display().to_string();
+                        }
+                    }
+
+fn detect_chrome_profile_path() -> Option<String> {
+    use std::path::PathBuf;
+    
+    if cfg!(target_os = "windows") {
+        // Try to get the user's home directory and construct the path
+        if let Some(home_dir) = std::env::var_os("USERPROFILE") {
+            let path = PathBuf::from(home_dir)
+                .join("AppData")
+                .join("Local")
+                .join("Google")
+                .join("Chrome")
+                .join("User Data");
+            
+            if path.exists() {
+                return Some(path.to_string_lossy().to_string());
+            }
+        }
+        Some("C:\\Users\\YourUsername\\AppData\\Local\\Google\\Chrome\\User Data".to_string())
+    } else if cfg!(target_os = "macos") {
+        if let Some(home_dir) = std::env::var_os("HOME") {
+            let path = PathBuf::from(home_dir)
+                .join("Library")
+                .join("Application Support")
+                .join("Google")
+                .join("Chrome");
+            
+            if path.exists() {
+                return Some(path.to_string_lossy().to_string());
+            }
+        }
+        Some("~/Library/Application Support/Google/Chrome".to_string())
+    } else if cfg!(target_os = "linux") {
+        if let Some(home_dir) = std::env::var_os("HOME") {
+            let path = PathBuf::from(home_dir)
+                .join(".config")
+                .join("google-chrome");
+            
+            if path.exists() {
+                return Some(path.to_string_lossy().to_string());
+            }
+        }
+        Some("~/.config/google-chrome".to_string())
+    } else {
+        None
+    }
+}
+                    
+                    if !self.chrome_profile_path.is_empty() {
+                        ui.add_space(5.0);
+                        ui.label("Selected path:");
+                        ui.monospace(&self.chrome_profile_path);
+                    }
+                }
+            }
         });
     }
 }
 
-async fn check_chrome() -> String {
-    log::info!("Checking Chrome CDP connection...");
-    match headless_chrome::Browser::connect("http://127.0.0.1:9222".to_string()) {
-        Ok(_) => {
+async fn check_chrome() -> (String, Option<headless_chrome::Browser>) {
+    log::info!("Launching Chrome with debugging enabled");
+    match headless_chrome::Browser::new(headless_chrome::LaunchOptions {
+        headless: false,
+        args: vec![
+            std::ffi::OsStr::new("--remote-debugging-port=9222"),
+            std::ffi::OsStr::new("--remote-debugging-address=127.0.0.1"),
+            std::ffi::OsStr::new("--disable-ipv6"),
+            std::ffi::OsStr::new("--user-data-dir=./chrome-profile"),
+        ],
+        ..Default::default()
+    }) {
+        Ok(browser) => {
             log::info!("Connected to Chrome CDP");
-            "Connected to Chrome CDP".to_string()
+            let tabs = browser.get_tabs().lock().unwrap();
+            let current_url = if let Some(tab) = tabs.first() {
+                let url = tab.get_url();
+                log::info!("Current URL: {}", url);
+                url
+            } else {
+                "No tabs found".to_string()
+            };
+            drop(tabs); // Explicitly drop the lock guard
+            ("Launched Chrome and connected to CDP".to_string(), Some(browser))
         }
         Err(e) => {
-            log::info!("Chrome not running, attempting to launch: {}", e);
-            match std::process::Command::new(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
-                .arg("--remote-debugging-port=9222")
-                .arg("--new-window")
-                .spawn()
-            {
-                Ok(_) => {
-                    log::info!("Launched Chrome, waiting...");
-                    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-                    match headless_chrome::Browser::connect("http://127.0.0.1:9222".to_string()) {
-                        Ok(_) => {
-                            log::info!("Connected after launch");
-                            "Launched Chrome and connected to CDP".to_string()
-                        }
-                        Err(e) => {
-                            log::info!("Failed to connect after launch: {}", e);
-                            format!("Launched Chrome but failed to connect: {}", e)
-                        }
-                    }
-                }
-                Err(e) => {
-                    log::info!("Failed to launch Chrome: {}", e);
-                    format!("Failed to launch Chrome: {}", e)
-                }
-            }
+            log::info!("Failed to launch Chrome: {:?}", e);
+            (format!("Failed to launch Chrome: {:?}", e), None)
         }
     }
 }
