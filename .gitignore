@@ -6,6 +6,8 @@
 /gui/dist
 /admin-gui/node_modules
 /admin-gui/dist
+/tauri/node_modules
+/tauri/bin
 
 # Local config
 /project.conf
