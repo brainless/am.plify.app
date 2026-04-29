@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Amplify",
+  "version": "0.1.0",
+  "identifier": "app.amplify.desktop",
+  "build": {
+    "frontendDist": "../../admin-gui/dist",
+    "devUrl": "http://127.0.0.1:36980",
+    "beforeDevCommand": "cd .. && ./tauri/scripts/dev-admin-gui.sh",
+    "beforeBuildCommand": "npm --prefix ../admin-gui run build",
+    "removeUnusedCommands": true
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "Amplify for Founders",
+        "width": 1100,
+        "height": 720,
+        "resizable": true
+      }
+    ]
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    }
+  },
+  "bundle": {
+    "active": true,
+    "externalBin": [
+      "../bin/amplify-backend"
+    ],
+    "icon": []
+  }
+}

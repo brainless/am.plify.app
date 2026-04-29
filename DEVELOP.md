@@ -1,42 +1,67 @@
 # DEVELOP
 
-This is a minimal template for fullstack development (human or agent). Shared Rust types drive everything.
+## What This Is
 
-## Scope
+A Tauri desktop app that automates installed browsers on the user's machine — detecting profiles, connecting via CDP (Chrome) and WebDriver BiDi (Firefox), and orchestrating tab/page interactions. The admin-gui is the primary UI; the Rust backend handles browser automation and data.
 
-Only maintain these parts: `backend`, `shared-types`, `gui`, `admin-gui`, `scripts`.
-Do not add extra services or crates unless explicitly requested.
+## Goals
+
+- Detect installed browsers and their profiles (Chrome, Firefox) from the filesystem
+- Re-launch browsers with remote debugging enabled (user confirms before relaunch)
+- List open tabs, check if a URL/site is already open
+- Read HTML, extract data, scroll pages, capture XHR/fetch responses
+- Click elements, navigate URLs, open new tabs
+- Surface extracted data via the admin-gui
+
+## Tech Stack
+
+| Layer | Tech |
+|---|---|
+| Desktop shell | Tauri 2.x |
+| Backend | Rust + Actix-web |
+| Browser automation | `rustenium` (BiDi + CDP, Chrome & Firefox) |
+| Admin UI | SolidJS + Vite + TailwindCSS + DaisyUI |
+| DB | SQLite (rusqlite + refinery migrations) |
+| Shared types | `shared-types` crate → generated TypeScript via `ts-rs` |
+
+## Browser Automation Notes
+
+- Chrome: CDP via chromedriver. Re-launch with `--remote-debugging-port` + correct `--user-data-dir` + `--profile-directory`.
+- Firefox: WebDriver BiDi natively — no geckodriver needed.
+- Profile discovery: read `Local State` JSON (Chrome) or `profiles.ini` (Firefox) before re-launching.
+- XHR response bodies: use `add_preload_script()` to inject a fetch/XHR monkey-patch since rustenium only intercepts at `BeforeRequestSent`. Re-evaluate if this proves too fragile.
+- Background tab reads work for static HTML; activate the tab when scroll-triggered lazy loading is needed.
+- `rustenium` is early-stage — if blocked, fallback is Playwright as a managed sidecar subprocess.
 
 ## Type-Driven Workflow
 
-1. Define API/domain types in `shared-types/src/*.rs`
-2. Regenerate TypeScript types: `cargo run -p shared-types --bin generate_api_types` → `gui/src/types/api.ts`
-3. Implement backend handler using shared types
-4. Implement UI in `gui`/`admin-gui` against generated types
+1. Define types in `shared-types/src/*.rs`
+2. Regenerate TS: `cargo run -p shared-types --bin generate_api_types` → `admin-gui/src/types/api.ts`
+3. Implement backend handler
+4. Implement admin-gui against generated types
 
-A feature is complete only when backend + frontend compile against the same shared contract.
-Start from `shared-types`, never UI-first. Keep endpoints small and explicit. Prefer strict enums/newtypes over free-text states.
+Start from `shared-types`, never UI-first.
 
-## Project Naming
+## Running Locally
 
-- Root config: `project.conf` (copy from `project.conf.template`)
-- Apply names: `scripts/init-project.sh`
-- Never hardcode app/repo names in scripts or configs — always parameterize by `PROJECT_NAME`.
+```bash
+./run-amplify-app.sh   # installs tauri deps, runs cargo tauri dev
+```
+
+Tauri launches the backend sidecar and starts the admin-gui Vite dev server automatically.
 
 ## Configuration
 
-Config is resolved in priority order: **env var → `project.conf` → `server.env`** (sibling to the binary on server).
+Priority order: **env var → `project.conf` → `server.env`**
 
-- `project.conf` — local development; read by backend and vite apps at dev/build time
-- env vars — override `project.conf`; injected by systemd on server
-- `server.env` — server-only secrets (e.g. `DATABASE_URL`); written by `setup-server.sh` to `DEPLOY_ROOT`, permissions `600`; auto-discovered by backend binaries via `current_exe()` path lookup
+- `AMPLIFY_BACKEND_PATH` — override backend binary location (dev/testing)
+- `project.conf` — local ports, DB path, browser config
+- Ports: backend `36960`, admin-gui `36980`
 
-Backend helper binaries (`src/bin/`) include both `config.rs` and `db.rs` via `#[path]` and resolve config through `read_project_conf`. No manual env setup needed on the server.
+## Structure
 
-Vite apps (`gui`, `admin-gui`) read `project.conf` at build/dev time via `vite.config.ts` — they do not use `server.env`.
-
-## Structure Rules
-
-- `shared-types` is the source of truth for API payloads
-- Avoid handwritten duplicate API types in frontend apps
-- Avoid premature abstractions — keep code minimal and typed
+- `backend/` — Rust, Actix-web API + browser automation logic
+- `admin-gui/` — SolidJS frontend (Tauri webview)
+- `shared-types/` — Rust types → generated TypeScript
+- `tauri/` — Tauri desktop shell (manages backend sidecar lifecycle)
+- `tauri/scripts/dev-admin-gui.sh` — builds backend binary, starts Vite
