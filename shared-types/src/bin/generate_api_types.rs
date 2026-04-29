@@ -1,4 +1,7 @@
-use shared_types::{BrowserKind, BrowserProfile, DetectedBrowser, HeartbeatResponse};
+use shared_types::{
+    BrowserKind, BrowserProfile, DetectedBrowser, HeartbeatResponse, LaunchBrowserRequest,
+    LaunchBrowserResponse,
+};
 use std::fs;
 use std::path::Path;
 use ts_rs::TS;
@@ -9,8 +12,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     types.push(clean_type(BrowserKind::export_to_string()?));
     types.push(clean_type(BrowserProfile::export_to_string()?));
     types.push(clean_type(DetectedBrowser::export_to_string()?));
+    types.push(clean_type(LaunchBrowserRequest::export_to_string()?));
+    types.push(clean_type(LaunchBrowserResponse::export_to_string()?));
 
-    let output_dir = Path::new("../gui/src/types");
+    let output_dir = Path::new("admin-gui/src/types");
     fs::create_dir_all(output_dir)?;
 
     let output_path = output_dir.join("api.ts");

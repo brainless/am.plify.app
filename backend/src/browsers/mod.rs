@@ -1,4 +1,5 @@
-use shared_types::{BrowserKind, BrowserProfile, DetectedBrowser};
+use shared_types::{BrowserKind, BrowserProfile, DetectedBrowser, LaunchBrowserRequest, LaunchBrowserResponse};
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 
 pub fn detect_browsers() -> Vec<DetectedBrowser> {
@@ -376,8 +377,11 @@ fn annotate_running_state(browsers: &mut Vec<DetectedBrowser>) {
                     .processes()
                     .values()
                     .any(|p| p.exe().is_some_and(|e| e == exe));
+                // Only trust lock files while the process is actually running.
+                // .parentlock is not always cleaned up on macOS after a crash/force-quit.
                 for profile in browser.profiles.iter_mut() {
-                    profile.is_running = is_firefox_profile_locked(Path::new(&profile.path));
+                    profile.is_running = browser.is_running
+                        && is_firefox_profile_locked(Path::new(&profile.path));
                 }
             }
             BrowserKind::Safari => {
@@ -428,4 +432,60 @@ fn is_firefox_profile_locked(profile_path: &Path) -> bool {
 #[cfg(windows)]
 fn is_firefox_profile_locked(profile_path: &Path) -> bool {
     profile_path.join("parent.lock").exists()
+}
+
+fn find_free_port(preferred: Option<u16>) -> Result<u16, String> {
+    if let Some(port) = preferred {
+        if TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            return Ok(port);
+        }
+    }
+    TcpListener::bind(("127.0.0.1", 0))
+        .and_then(|l| l.local_addr())
+        .map(|a| a.port())
+        .map_err(|e| format!("no free port: {e}"))
+}
+
+pub fn launch_browser(req: &LaunchBrowserRequest) -> Result<LaunchBrowserResponse, String> {
+    let port = find_free_port(req.debug_port)?;
+
+    let mut cmd = std::process::Command::new(&req.executable);
+
+    match req.kind {
+        BrowserKind::Firefox
+        | BrowserKind::FirefoxDeveloperEdition
+        | BrowserKind::FirefoxNightly => {
+            // Firefox exposes WebDriver BiDi natively on the remote-debugging port.
+            // --no-remote prevents it from reusing an existing instance that lacks debug flags.
+            cmd.arg(format!("--remote-debugging-port={port}"))
+                .arg("--profile")
+                .arg(&req.profile_path)
+                .arg("--no-remote")
+                .env("MOZ_LAUNCHER_PROCESS", "0");
+        }
+        BrowserKind::Safari => {
+            return Err("Safari does not support WebDriver BiDi remote-debug launch".into());
+        }
+        _ => {
+            // Chrome, Chromium, Brave, Edge — all use the same flags.
+            // chromedriver (used by rustenium for BiDi) will connect via --remote-debugging-port.
+            cmd.arg(format!("--remote-debugging-port={port}"))
+                .arg(format!("--user-data-dir={}", req.user_data_dir))
+                .arg(format!("--profile-directory={}", req.profile_id))
+                .arg("--no-first-run")
+                .arg("--no-default-browser-check");
+        }
+    }
+
+    let child = cmd
+        .spawn()
+        .map_err(|e| format!("failed to launch browser: {e}"))?;
+
+    let pid = child.id();
+
+    // Detach: we intentionally do not wait on the child — the browser runs independently.
+    // The caller connects to it via WebDriver BiDi on `port`.
+    std::mem::forget(child);
+
+    Ok(LaunchBrowserResponse { debug_port: port, pid })
 }

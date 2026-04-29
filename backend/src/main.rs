@@ -1,6 +1,6 @@
 use actix_cors::Cors;
-use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use shared_types::HeartbeatResponse;
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use shared_types::{HeartbeatResponse, LaunchBrowserRequest};
 
 mod auth;
 mod browsers;
@@ -22,6 +22,15 @@ async fn list_browsers() -> impl Responder {
         .await
         .unwrap_or_default();
     HttpResponse::Ok().json(detected)
+}
+
+#[post("/api/browsers/launch")]
+async fn launch_browser(body: web::Json<LaunchBrowserRequest>) -> impl Responder {
+    match web::block(move || browsers::launch_browser(&body)).await {
+        Ok(Ok(resp)) => HttpResponse::Ok().json(resp),
+        Ok(Err(msg)) => HttpResponse::BadRequest().body(msg),
+        Err(_) => HttpResponse::InternalServerError().body("launch task panicked"),
+    }
 }
 
 #[actix_web::main]
@@ -80,7 +89,7 @@ async fn main() -> std::io::Result<()> {
         }
 
         let cors = cors
-            .allowed_methods(vec!["GET"])
+            .allowed_methods(vec!["GET", "POST"])
             .allow_any_header();
 
         App::new()
@@ -88,6 +97,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::JsonConfig::default())
             .service(heartbeat)
             .service(list_browsers)
+            .service(launch_browser)
     })
     .bind((backend_host.as_str(), backend_port))?
     .run()
