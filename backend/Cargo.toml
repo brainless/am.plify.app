@@ -18,6 +18,7 @@ rusqlite = { version = "0.32", features = ["bundled"], optional = true }
 serde.workspace = true
 serde_json.workspace = true
 shared-types = { path = "../shared-types" }
+sysinfo = "0.33"
 which = "7"
 
 [target.'cfg(windows)'.dependencies]

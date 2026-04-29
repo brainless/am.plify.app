@@ -1,12 +1,136 @@
+import { createResource, For, Show } from "solid-js";
+
+type BrowserKind =
+  | "chrome"
+  | "chromium"
+  | "brave"
+  | "edge"
+  | "firefox"
+  | "firefox_developer_edition"
+  | "firefox_nightly"
+  | "safari";
+
+interface BrowserProfile {
+  id: string;
+  name: string;
+  path: string;
+  is_running: boolean;
+}
+
+interface DetectedBrowser {
+  kind: BrowserKind;
+  executable: string;
+  user_data_dir: string;
+  profiles: BrowserProfile[];
+  is_running: boolean;
+}
+
+const BROWSER_LABEL: Record<BrowserKind, string> = {
+  chrome: "Google Chrome",
+  chromium: "Chromium",
+  brave: "Brave",
+  edge: "Microsoft Edge",
+  firefox: "Firefox",
+  firefox_developer_edition: "Firefox Developer Edition",
+  firefox_nightly: "Firefox Nightly",
+  safari: "Safari",
+};
+
+const BROWSER_BADGE_COLOR: Record<BrowserKind, string> = {
+  chrome: "badge-info",
+  chromium: "badge-neutral",
+  brave: "badge-success",
+  edge: "badge-secondary",
+  firefox: "badge-warning",
+  firefox_developer_edition: "badge-warning",
+  firefox_nightly: "badge-warning",
+  safari: "badge-primary",
+};
+
+async function fetchBrowsers(): Promise<DetectedBrowser[]> {
+  const res = await fetch("/api/browsers");
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
+}
+
 export default function App() {
+  const [browsers] = createResource(fetchBrowsers);
+
   return (
     <main class="min-h-screen bg-base-200 p-8">
-      <section class="mx-auto mt-16 max-w-xl rounded-xl border border-base-300 bg-base-100 p-8 shadow-sm">
-        <h1 class="text-3xl font-bold">Hello World</h1>
-        <p class="mt-4 text-sm text-base-content/80">
-          Admin GUI placeholder for system configuration.
-        </p>
-      </section>
+      <div class="mx-auto max-w-2xl">
+        <h1 class="text-2xl font-bold mb-6">Detected Browsers</h1>
+
+        <Show when={browsers.loading}>
+          <div class="flex justify-center py-16">
+            <span class="loading loading-spinner loading-md" />
+          </div>
+        </Show>
+
+        <Show when={browsers.error}>
+          <div role="alert" class="alert alert-error">
+            <span>Failed to load browsers: {String(browsers.error)}</span>
+          </div>
+        </Show>
+
+        <Show when={!browsers.loading && !browsers.error && browsers()?.length === 0}>
+          <div role="alert" class="alert alert-info">
+            <span>No browsers detected on this machine.</span>
+          </div>
+        </Show>
+
+        <div class="flex flex-col gap-3">
+          <For each={browsers()}>
+            {(browser) => (
+              <details
+                class="collapse collapse-arrow bg-base-100 border border-base-300 rounded-xl"
+                open
+              >
+                <summary class="collapse-title flex items-center gap-3 min-h-0 py-3">
+                  <span
+                    class={`badge badge-soft ${BROWSER_BADGE_COLOR[browser.kind]} shrink-0`}
+                  >
+                    {BROWSER_LABEL[browser.kind]}
+                  </span>
+                  <Show when={browser.is_running}>
+                    <span class="badge badge-soft badge-success badge-sm shrink-0">running</span>
+                  </Show>
+                  <span class="text-xs text-base-content/50 font-mono truncate">
+                    {browser.executable}
+                  </span>
+                </summary>
+
+                <div class="collapse-content pb-2">
+                  <Show
+                    when={browser.profiles.length > 0}
+                    fallback={
+                      <p class="text-sm text-base-content/50 py-1">No profiles found.</p>
+                    }
+                  >
+                    <ul class="flex flex-col">
+                      <For each={browser.profiles}>
+                        {(profile) => (
+                          <li class="flex items-start gap-3 py-2 border-b border-base-200 last:border-0">
+                            <span class="badge badge-ghost badge-sm mt-0.5 shrink-0">
+                              {profile.name}
+                            </span>
+                            <Show when={profile.is_running}>
+                              <span class="badge badge-soft badge-success badge-sm mt-0.5 shrink-0">running</span>
+                            </Show>
+                            <span class="text-xs text-base-content/50 font-mono break-all">
+                              {profile.path}
+                            </span>
+                          </li>
+                        )}
+                      </For>
+                    </ul>
+                  </Show>
+                </div>
+              </details>
+            )}
+          </For>
+        </div>
+      </div>
     </main>
   );
 }

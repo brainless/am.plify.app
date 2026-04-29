@@ -21,6 +21,7 @@ pub fn detect_browsers() -> Vec<DetectedBrowser> {
                 id: "default".into(),
                 name: "Default".into(),
                 path: candidate.data_dir.to_string_lossy().into_owned(),
+                is_running: false,
             }],
             _ => parse_chrome_profiles(&candidate.data_dir),
         };
@@ -29,9 +30,11 @@ pub fn detect_browsers() -> Vec<DetectedBrowser> {
             executable: executable.to_string_lossy().into_owned(),
             user_data_dir: candidate.data_dir.to_string_lossy().into_owned(),
             profiles,
+            is_running: false,
         });
     }
 
+    annotate_running_state(&mut results);
     results
 }
 
@@ -86,6 +89,7 @@ fn parse_chrome_profiles(data_dir: &Path) -> Vec<BrowserProfile> {
                 id: dir_name.clone(),
                 name,
                 path: data_dir.join(dir_name).to_string_lossy().into_owned(),
+                is_running: false,
             }
         })
         .collect()
@@ -119,6 +123,7 @@ fn parse_ini_profiles(content: &str, root_dir: &Path) -> Vec<BrowserProfile> {
                 id: p.clone(),
                 name: name.take().unwrap_or_else(|| p.clone()),
                 path: abs.to_string_lossy().into_owned(),
+                is_running: false,
             });
         } else {
             name.take();
@@ -351,4 +356,76 @@ mod platform {
             },
         ]
     }
+}
+
+fn annotate_running_state(browsers: &mut Vec<DetectedBrowser>) {
+    use std::collections::HashSet;
+    use sysinfo::{ProcessesToUpdate, System};
+
+    let mut sys = System::new();
+    sys.refresh_processes(ProcessesToUpdate::All, false);
+
+    for browser in browsers.iter_mut() {
+        let exe = Path::new(&browser.executable);
+
+        match browser.kind {
+            BrowserKind::Firefox
+            | BrowserKind::FirefoxDeveloperEdition
+            | BrowserKind::FirefoxNightly => {
+                browser.is_running = sys
+                    .processes()
+                    .values()
+                    .any(|p| p.exe().is_some_and(|e| e == exe));
+                for profile in browser.profiles.iter_mut() {
+                    profile.is_running = is_firefox_profile_locked(Path::new(&profile.path));
+                }
+            }
+            BrowserKind::Safari => {
+                browser.is_running = sys
+                    .processes()
+                    .values()
+                    .any(|p| p.exe().is_some_and(|e| e == exe));
+                for profile in browser.profiles.iter_mut() {
+                    profile.is_running = browser.is_running;
+                }
+            }
+            _ => {
+                // Chrome family: parse --profile-directory=<id> from process args
+                let matching: Vec<_> = sys
+                    .processes()
+                    .values()
+                    .filter(|p| p.exe().is_some_and(|e| e == exe))
+                    .collect();
+
+                browser.is_running = !matching.is_empty();
+
+                let active_profiles: HashSet<String> = matching
+                    .iter()
+                    .flat_map(|p| p.cmd().iter())
+                    .filter_map(|arg| {
+                        arg.to_str()
+                            .and_then(|s| s.strip_prefix("--profile-directory="))
+                            .map(|s| s.to_string())
+                    })
+                    .collect();
+
+                for profile in browser.profiles.iter_mut() {
+                    profile.is_running = active_profiles.contains(&profile.id);
+                }
+            }
+        }
+    }
+}
+
+#[cfg(unix)]
+fn is_firefox_profile_locked(profile_path: &Path) -> bool {
+    // Linux: `lock` symlink (points to a network address, not a real path).
+    // macOS: `.parentlock` regular file. Check both for cross-distro safety.
+    profile_path.join("lock").symlink_metadata().is_ok()
+        || profile_path.join(".parentlock").exists()
+}
+
+#[cfg(windows)]
+fn is_firefox_profile_locked(profile_path: &Path) -> bool {
+    profile_path.join("parent.lock").exists()
 }

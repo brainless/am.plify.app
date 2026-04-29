@@ -28,6 +28,7 @@ pub struct BrowserProfile {
     pub id: String,
     pub name: String,
     pub path: String,
+    pub is_running: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -37,4 +38,5 @@ pub struct DetectedBrowser {
     pub executable: String,
     pub user_data_dir: String,
     pub profiles: Vec<BrowserProfile>,
+    pub is_running: bool,
 }
