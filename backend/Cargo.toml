@@ -1,5 +1,5 @@
 [package]
-name = "app-backend"
+name = "amplify-backend"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,8 +11,14 @@ db-postgres = ["dep:postgres", "refinery/postgres"]
 [dependencies]
 actix-cors = "0.7"
 actix-web.workspace = true
+dirs = "5"
 refinery = { version = "0.8", default-features = false }
 postgres = { version = "0.19", optional = true }
 rusqlite = { version = "0.32", features = ["bundled"], optional = true }
 serde.workspace = true
+serde_json.workspace = true
 shared-types = { path = "../shared-types" }
+which = "7"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"

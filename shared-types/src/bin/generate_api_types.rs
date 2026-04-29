@@ -1,4 +1,4 @@
-use shared_types::HeartbeatResponse;
+use shared_types::{BrowserKind, BrowserProfile, DetectedBrowser, HeartbeatResponse};
 use std::fs;
 use std::path::Path;
 use ts_rs::TS;
@@ -6,6 +6,9 @@ use ts_rs::TS;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut types = Vec::new();
     types.push(clean_type(HeartbeatResponse::export_to_string()?));
+    types.push(clean_type(BrowserKind::export_to_string()?));
+    types.push(clean_type(BrowserProfile::export_to_string()?));
+    types.push(clean_type(DetectedBrowser::export_to_string()?));
 
     let output_dir = Path::new("../gui/src/types");
     fs::create_dir_all(output_dir)?;

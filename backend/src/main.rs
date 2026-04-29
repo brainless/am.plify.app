@@ -3,6 +3,7 @@ use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 use shared_types::HeartbeatResponse;
 
 mod auth;
+mod browsers;
 mod config;
 
 #[get("/api/heartbeat")]
@@ -13,6 +14,14 @@ async fn heartbeat() -> impl Responder {
     };
 
     HttpResponse::Ok().json(payload)
+}
+
+#[get("/api/browsers")]
+async fn list_browsers() -> impl Responder {
+    let detected = web::block(|| browsers::detect_browsers())
+        .await
+        .unwrap_or_default();
+    HttpResponse::Ok().json(detected)
 }
 
 #[actix_web::main]
@@ -78,6 +87,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             .app_data(web::JsonConfig::default())
             .service(heartbeat)
+            .service(list_browsers)
     })
     .bind((backend_host.as_str(), backend_port))?
     .run()
