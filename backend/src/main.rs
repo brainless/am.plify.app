@@ -1,10 +1,20 @@
 use actix_cors::Cors;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
-use shared_types::{BrowserStateSnapshot, HeartbeatResponse, LaunchBrowserRequest};
+use rustenium::browsers::{BidiBrowser, ChromeBrowser, ChromeConfig, ChromeLaunchMode, FirefoxBrowser, FirefoxConfig, FirefoxLaunchMode};
+use rustenium_bidi_definitions::browsing_context::commands::{GetTree, GetTreeMethod, GetTreeParams, BrowsingContextCommand};
+use rustenium_bidi_definitions::browsing_context::results::GetTreeResult;
+use rustenium_bidi_definitions::browsing_context::types::BrowsingContext;
+use rustenium_bidi_definitions::storage::commands::{GetCookies, GetCookiesMethod, GetCookiesParams, StorageCommand};
+use rustenium_bidi_definitions::storage::results::GetCookiesResult;
+use rustenium_bidi_definitions::storage::types::{BrowsingContextPartitionDescriptor, BrowsingContextPartitionDescriptorType, PartitionDescriptor};
+use rustenium_bidi_definitions::Command;
+use serde::{Deserialize, Serialize};
+use shared_types::{BrowserStateSnapshot, ConnectBrowserRequest, ConnectBrowserResponse, HeartbeatResponse, LaunchBrowserRequest, RedditLoginStatus, TabInfo};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{watch, RwLock};
+use uuid::Uuid;
 
 mod auth;
 mod browsers;
@@ -18,6 +28,146 @@ struct BrowserCache {
 struct AppState {
     cache: Arc<RwLock<BrowserCache>>,
     notify: watch::Receiver<u64>,
+    connections: Arc<RwLock<HashMap<String, BrowserConnection>>>,
+}
+
+enum BrowserConnection {
+    Chrome(ChromeBrowser),
+    Firefox(FirefoxBrowser),
+}
+
+impl BrowserConnection {
+    async fn connect(kind: &shared_types::BrowserKind, debug_port: u16) -> Result<Self, String> {
+        match kind {
+            shared_types::BrowserKind::Chrome
+            | shared_types::BrowserKind::Chromium
+            | shared_types::BrowserKind::Brave
+            | shared_types::BrowserKind::Edge => {
+                let mut config = ChromeConfig {
+                    launch_mode: ChromeLaunchMode::Remote(debug_port),
+                    enable_bidi: true,
+                    enable_cdp: false,
+                    ..Default::default()
+                };
+                if config.driver_executable_path.is_empty() {
+                    config.driver_executable_path = "chromedriver".to_string();
+                }
+                let browser = ChromeBrowser::new(config).await;
+                Ok(BrowserConnection::Chrome(browser))
+            }
+            shared_types::BrowserKind::Firefox
+            | shared_types::BrowserKind::FirefoxDeveloperEdition
+            | shared_types::BrowserKind::FirefoxNightly => {
+                let config = FirefoxConfig {
+                    launch_mode: FirefoxLaunchMode::Remote(debug_port),
+                    ..Default::default()
+                };
+                let browser = FirefoxBrowser::new(config).await;
+                Ok(BrowserConnection::Firefox(browser))
+            }
+            shared_types::BrowserKind::Safari => {
+                Err("Safari does not support WebDriver BiDi".into())
+            }
+        }
+    }
+
+    async fn list_tabs(&mut self) -> Result<Vec<TabInfo>, String> {
+        tracing::info!("Listing tabs via BiDi getTree");
+        let command = Command::BrowsingContext(BrowsingContextCommand::GetTree(GetTree {
+            method: GetTreeMethod::GetTree,
+            params: GetTreeParams {
+                max_depth: Some(1),
+                root: None,
+            },
+        }));
+
+        let response = match self {
+            BrowserConnection::Chrome(b) => b.send_command(command).await,
+            BrowserConnection::Firefox(b) => b.send_command(command).await,
+        };
+
+        let response = response.map_err(|e| {
+            tracing::error!("Failed to get tab tree: {e:?}");
+            format!("Failed to get tab tree: {e:?}")
+        })?;
+
+        tracing::info!("getTree raw result: {}", serde_json::to_string(&response.result).unwrap_or_default());
+
+        let result: GetTreeResult = serde_json::from_value(response.result)
+            .map_err(|e| format!("Failed to parse tab tree: {e}"))?;
+
+        tracing::info!("getTree returned {} contexts", result.contexts.inner().len());
+
+        let mut tabs = Vec::new();
+        for info in result.contexts.inner() {
+            if info.parent.is_none() {
+                let url = info.url.clone();
+                let is_reddit = url.contains("reddit.com");
+                tracing::info!("Tab: url={url}, is_reddit={is_reddit}");
+                tabs.push(TabInfo {
+                    context_id: info.context.as_ref().to_string(),
+                    url,
+                    title: String::new(),
+                    is_reddit,
+                });
+            }
+        }
+
+        Ok(tabs)
+    }
+
+    async fn check_reddit_login(&mut self, context_id: &str) -> Result<RedditLoginStatus, String> {
+        let bc = BrowsingContext::new(context_id.to_string());
+        let partition = PartitionDescriptor::BrowsingContextPartitionDescriptor(
+            BrowsingContextPartitionDescriptor::new(
+                BrowsingContextPartitionDescriptorType::Context,
+                bc,
+            ),
+        );
+
+        let command = Command::Storage(StorageCommand::GetCookies(GetCookies {
+            method: GetCookiesMethod::GetCookies,
+            params: GetCookiesParams {
+                filter: None,
+                partition: Some(partition),
+            },
+        }));
+
+        let response = match self {
+            BrowserConnection::Chrome(b) => b.send_command(command).await,
+            BrowserConnection::Firefox(b) => b.send_command(command).await,
+        };
+
+        let response = response.map_err(|e| format!("Failed to get cookies: {e:?}"))?;
+        let result: GetCookiesResult = serde_json::from_value(response.result)
+            .map_err(|e| format!("Failed to parse cookies: {e}"))?;
+
+        let reddit_cookie = result.cookies.iter().find(|c| c.name == "reddit_session");
+        let is_logged_in = reddit_cookie.is_some();
+
+        let username = if is_logged_in {
+            result.cookies.iter().find(|c| c.name == "session_tracker").and_then(|c| {
+                if let rustenium_bidi_definitions::network::types::BytesValue::StringValue(sv) = &c.value {
+                    Some(sv.value.clone())
+                } else {
+                    None
+                }
+            })
+        } else {
+            None
+        };
+
+        Ok(RedditLoginStatus {
+            context_id: context_id.to_string(),
+            is_logged_in,
+            username,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct InspectTabRequest {
+    pub context_id: String,
 }
 
 #[get("/api/heartbeat")]
@@ -89,6 +239,72 @@ async fn launch_browser(body: web::Json<LaunchBrowserRequest>) -> impl Responder
     }
 }
 
+#[post("/api/browsers/connect")]
+async fn connect_browser(
+    body: web::Json<ConnectBrowserRequest>,
+    state: web::Data<AppState>,
+) -> impl Responder {
+    let req = body.into_inner();
+    let debug_port = req.debug_port;
+    let kind = req.kind.clone();
+
+    tracing::info!("Connecting to browser: kind={:?}, port={}", kind, debug_port);
+
+    let connection = match BrowserConnection::connect(&kind, debug_port).await {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!("Failed to connect: {}", e);
+            return HttpResponse::BadRequest().body(e);
+        }
+    };
+
+    let connection_id = Uuid::new_v4().to_string();
+    state.connections.write().await.insert(connection_id.clone(), connection);
+    tracing::info!("Connected, connection_id={}", connection_id);
+
+    HttpResponse::Ok().json(ConnectBrowserResponse { connection_id })
+}
+
+#[get("/api/browsers/{connection_id}/tabs")]
+async fn list_tabs(
+    path: web::Path<String>,
+    state: web::Data<AppState>,
+) -> impl Responder {
+    let connection_id = path.into_inner();
+
+    let mut connections = state.connections.write().await;
+    let connection = match connections.get_mut(&connection_id) {
+        Some(c) => c,
+        None => return HttpResponse::NotFound().body("Connection not found"),
+    };
+
+    match connection.list_tabs().await {
+        Ok(tabs) => HttpResponse::Ok().json(tabs),
+        Err(e) => HttpResponse::InternalServerError().body(e),
+    }
+}
+
+#[post("/api/browsers/{connection_id}/tabs/inspect")]
+async fn inspect_tab(
+    path: web::Path<String>,
+    body: web::Json<InspectTabRequest>,
+    state: web::Data<AppState>,
+) -> impl Responder {
+    let connection_id = path.into_inner();
+    let context_id = body.context_id.clone();
+
+    let mut connections = state.connections.write().await;
+    let connection = match connections.get_mut(&connection_id) {
+        Some(c) => c,
+        None => return HttpResponse::NotFound().body("Connection not found"),
+    };
+
+    match connection.check_reddit_login(&context_id).await {
+        Ok(status) => HttpResponse::Ok().json(status),
+        Err(e) => HttpResponse::InternalServerError().body(e),
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let backend_host = std::env::var("BACKEND_HOST")
@@ -156,7 +372,6 @@ async fn main() -> std::io::Result<()> {
                 c.version += 1;
                 let _ = notify_tx_bg.send(c.version);
             } else {
-                // Reuse the allocation to avoid dropping after comparison
                 let _ = std::mem::take(&mut updated);
             }
         }
@@ -177,6 +392,7 @@ async fn main() -> std::io::Result<()> {
     let app_state = web::Data::new(AppState {
         cache: cache.clone(),
         notify: notify_rx,
+        connections: Arc::new(RwLock::new(HashMap::new())),
     });
 
     HttpServer::new(move || {
@@ -205,6 +421,9 @@ async fn main() -> std::io::Result<()> {
             .service(list_browsers)
             .service(browsers_running)
             .service(launch_browser)
+            .service(connect_browser)
+            .service(list_tabs)
+            .service(inspect_tab)
     })
     .bind((backend_host.as_str(), backend_port))?
     .run()

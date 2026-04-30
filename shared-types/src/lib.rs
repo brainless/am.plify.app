@@ -26,6 +26,36 @@ pub struct LaunchBrowserResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
+pub struct ConnectBrowserRequest {
+    pub kind: BrowserKind,
+    pub debug_port: u16,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ConnectBrowserResponse {
+    pub connection_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct TabInfo {
+    pub context_id: String,
+    pub url: String,
+    pub title: String,
+    pub is_reddit: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct RedditLoginStatus {
+    pub context_id: String,
+    pub is_logged_in: bool,
+    pub username: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct HeartbeatResponse {
     pub status: String,
     pub service: String,

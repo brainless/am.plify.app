@@ -33,4 +33,16 @@ debug_port: number | null, };
 export type LaunchBrowserResponse = { debug_port: number, pid: number, };
 
 
+export type ConnectBrowserRequest = { kind: BrowserKind, debug_port: number, };
+
+
+export type ConnectBrowserResponse = { connection_id: string, };
+
+
+export type TabInfo = { context_id: string, url: string, title: string, is_reddit: boolean, };
+
+
+export type RedditLoginStatus = { context_id: string, is_logged_in: boolean, username: string | null, };
+
+
 export type BrowserStateSnapshot = { browsers: Array<DetectedBrowser>, version: bigint, };
