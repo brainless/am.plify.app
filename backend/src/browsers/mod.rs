@@ -359,7 +359,7 @@ mod platform {
     }
 }
 
-fn annotate_running_state(browsers: &mut Vec<DetectedBrowser>) {
+pub fn annotate_running_state(browsers: &mut Vec<DetectedBrowser>) {
     use std::collections::HashSet;
     use sysinfo::{ProcessesToUpdate, System};
 

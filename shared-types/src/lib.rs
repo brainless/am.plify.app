@@ -63,3 +63,10 @@ pub struct DetectedBrowser {
     pub profiles: Vec<BrowserProfile>,
     pub is_running: bool,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct BrowserStateSnapshot {
+    pub browsers: Vec<DetectedBrowser>,
+    pub version: u64,
+}

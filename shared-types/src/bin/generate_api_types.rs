@@ -1,6 +1,6 @@
 use shared_types::{
-    BrowserKind, BrowserProfile, DetectedBrowser, HeartbeatResponse, LaunchBrowserRequest,
-    LaunchBrowserResponse,
+    BrowserKind, BrowserProfile, BrowserStateSnapshot, DetectedBrowser, HeartbeatResponse,
+    LaunchBrowserRequest, LaunchBrowserResponse,
 };
 use std::fs;
 use std::path::Path;
@@ -14,6 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     types.push(clean_type(DetectedBrowser::export_to_string()?));
     types.push(clean_type(LaunchBrowserRequest::export_to_string()?));
     types.push(clean_type(LaunchBrowserResponse::export_to_string()?));
+    types.push(clean_type(BrowserStateSnapshot::export_to_string()?));
 
     let output_dir = Path::new("admin-gui/src/types");
     fs::create_dir_all(output_dir)?;

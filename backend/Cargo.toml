@@ -19,6 +19,7 @@ serde.workspace = true
 serde_json.workspace = true
 shared-types = { path = "../shared-types" }
 sysinfo = "0.33"
+tokio = { version = "1", features = ["sync", "rt", "time", "macros"] }
 which = "7"
 
 [target.'cfg(windows)'.dependencies]

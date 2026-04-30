@@ -31,3 +31,6 @@ debug_port: number | null, };
 
 
 export type LaunchBrowserResponse = { debug_port: number, pid: number, };
+
+
+export type BrowserStateSnapshot = { browsers: Array<DetectedBrowser>, version: bigint, };

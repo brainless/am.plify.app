@@ -1,10 +1,24 @@
 use actix_cors::Cors;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
-use shared_types::{HeartbeatResponse, LaunchBrowserRequest};
+use shared_types::{BrowserStateSnapshot, HeartbeatResponse, LaunchBrowserRequest};
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::{watch, RwLock};
 
 mod auth;
 mod browsers;
 mod config;
+
+struct BrowserCache {
+    browsers: Vec<shared_types::DetectedBrowser>,
+    version: u64,
+}
+
+struct AppState {
+    cache: Arc<RwLock<BrowserCache>>,
+    notify: watch::Receiver<u64>,
+}
 
 #[get("/api/heartbeat")]
 async fn heartbeat() -> impl Responder {
@@ -17,11 +31,53 @@ async fn heartbeat() -> impl Responder {
 }
 
 #[get("/api/browsers")]
-async fn list_browsers() -> impl Responder {
-    let detected = web::block(|| browsers::detect_browsers())
-        .await
-        .unwrap_or_default();
-    HttpResponse::Ok().json(detected)
+async fn list_browsers(state: web::Data<AppState>) -> impl Responder {
+    let cache = state.cache.read().await;
+    HttpResponse::Ok().json(&cache.browsers)
+}
+
+#[get("/api/browsers/running")]
+async fn browsers_running(
+    state: web::Data<AppState>,
+    query: web::Query<HashMap<String, u64>>,
+) -> impl Responder {
+    let since = query.get("since").copied().unwrap_or(0);
+    let mut rx = state.notify.clone();
+    let _ = rx.borrow_and_update();
+
+    {
+        let cache = state.cache.read().await;
+        if cache.version > since {
+            return HttpResponse::Ok().json(BrowserStateSnapshot {
+                browsers: cache.browsers.clone(),
+                version: cache.version,
+            });
+        }
+    }
+
+    let timeout = tokio::time::sleep(Duration::from_secs(30));
+    tokio::pin!(timeout);
+
+    loop {
+        tokio::select! {
+            _ = rx.changed() => {
+                let cache = state.cache.read().await;
+                if cache.version > since {
+                    return HttpResponse::Ok().json(BrowserStateSnapshot {
+                        browsers: cache.browsers.clone(),
+                        version: cache.version,
+                    });
+                }
+            }
+            _ = &mut timeout => {
+                let cache = state.cache.read().await;
+                return HttpResponse::Ok().json(BrowserStateSnapshot {
+                    browsers: cache.browsers.clone(),
+                    version: cache.version,
+                });
+            }
+        }
+    }
 }
 
 #[post("/api/browsers/launch")]
@@ -62,6 +118,50 @@ async fn main() -> std::io::Result<()> {
         .ok()
         .or_else(|| config::read_project_conf("DOMAIN_NAME"));
 
+    let initial_browsers = web::block(browsers::detect_browsers)
+        .await
+        .unwrap_or_default();
+
+    let (notify_tx, notify_rx) = watch::channel(0u64);
+    let cache = Arc::new(RwLock::new(BrowserCache {
+        browsers: initial_browsers,
+        version: 1,
+    }));
+
+    let cache_bg = cache.clone();
+    let notify_tx_bg = notify_tx.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(2));
+        loop {
+            interval.tick().await;
+            let snapshot = {
+                let c = cache_bg.read().await;
+                c.browsers.clone()
+            };
+
+            let mut updated = match tokio::task::spawn_blocking(move || {
+                let mut browsers = snapshot;
+                browsers::annotate_running_state(&mut browsers);
+                browsers
+            })
+            .await
+            {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+
+            let mut c = cache_bg.write().await;
+            if !running_state_eq(&c.browsers, &updated) {
+                c.browsers = updated;
+                c.version += 1;
+                let _ = notify_tx_bg.send(c.version);
+            } else {
+                // Reuse the allocation to avoid dropping after comparison
+                let _ = std::mem::take(&mut updated);
+            }
+        }
+    });
+
     println!(
         "Backend listening on http://{}:{}",
         backend_host, backend_port
@@ -73,6 +173,11 @@ async fn main() -> std::io::Result<()> {
     let admin_origin_local = format!("http://localhost:{admin_gui_port}");
     let domain_origin_https = domain_name.as_deref().map(|d| format!("https://{d}"));
     let domain_origin_http = domain_name.as_deref().map(|d| format!("http://{d}"));
+
+    let app_state = web::Data::new(AppState {
+        cache: cache.clone(),
+        notify: notify_rx,
+    });
 
     HttpServer::new(move || {
         let mut cors = Cors::default()
@@ -94,12 +199,29 @@ async fn main() -> std::io::Result<()> {
 
         App::new()
             .wrap(cors)
+            .app_data(app_state.clone())
             .app_data(web::JsonConfig::default())
             .service(heartbeat)
             .service(list_browsers)
+            .service(browsers_running)
             .service(launch_browser)
     })
     .bind((backend_host.as_str(), backend_port))?
     .run()
     .await
+}
+
+fn running_state_eq(a: &[shared_types::DetectedBrowser], b: &[shared_types::DetectedBrowser]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b.iter()).all(|(a, b)| {
+        if a.is_running != b.is_running || a.profiles.len() != b.profiles.len() {
+            return false;
+        }
+        a.profiles
+            .iter()
+            .zip(b.profiles.iter())
+            .all(|(pa, pb)| pa.is_running == pb.is_running)
+    })
 }

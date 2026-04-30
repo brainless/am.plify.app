@@ -1,4 +1,4 @@
-import { createResource, createSignal, For, Match, Show, Switch } from "solid-js";
+import { createResource, createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 
 type BrowserKind =
   | "chrome"
@@ -39,6 +39,11 @@ interface LaunchBrowserResponse {
   pid: number;
 }
 
+interface BrowserStateSnapshot {
+  browsers: DetectedBrowser[];
+  version: number;
+}
+
 type LaunchState =
   | { tag: "idle" }
   | { tag: "launching" }
@@ -66,12 +71,6 @@ const BROWSER_BADGE_COLOR: Record<BrowserKind, string> = {
   firefox_nightly: "badge-warning",
   safari: "badge-primary",
 };
-
-async function fetchBrowsers(): Promise<DetectedBrowser[]> {
-  const res = await fetch("/api/browsers");
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
-}
 
 async function postLaunch(req: LaunchBrowserRequest): Promise<LaunchBrowserResponse> {
   const res = await fetch("/api/browsers/launch", {
@@ -158,7 +157,47 @@ function ProfileRow(props: { browser: DetectedBrowser; profile: BrowserProfile }
 }
 
 export default function App() {
-  const [browsers] = createResource(fetchBrowsers);
+  const [version, setVersion] = createSignal(0);
+
+  const [browsers, { mutate: setBrowsers }] = createResource(async () => {
+    const res = await fetch("/api/browsers/running?since=0");
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    const data: BrowserStateSnapshot = await res.json();
+    setVersion(data.version);
+    return data.browsers;
+  });
+
+  onMount(() => {
+    let active = true;
+
+    (async function poll() {
+      while (active && browsers.loading) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      if (!active) return;
+
+      while (active) {
+        try {
+          const res = await fetch(`/api/browsers/running?since=${version()}`);
+          if (!res.ok) {
+            await new Promise((r) => setTimeout(r, 5000));
+            continue;
+          }
+          const data: BrowserStateSnapshot = await res.json();
+          if (data.version !== version()) {
+            setVersion(data.version);
+            setBrowsers(data.browsers);
+          }
+        } catch {
+          await new Promise((r) => setTimeout(r, 5000));
+        }
+      }
+    })();
+
+    onCleanup(() => {
+      active = false;
+    });
+  });
 
   return (
     <main class="min-h-screen bg-base-200 p-8">
