@@ -272,7 +272,14 @@ async fn main() -> std::io::Result<()> {
             .allowed_origin(&gui_origin_ip)
             .allowed_origin(&gui_origin_local)
             .allowed_origin(&admin_origin_ip)
-            .allowed_origin(&admin_origin_local);
+            .allowed_origin(&admin_origin_local)
+            // Browser extension background scripts send Origin: chrome-extension://... or
+            // moz-extension://... on WebSocket upgrade requests. These are not registered
+            // as OS URL schemes so they never match the localhost allowlist above.
+            .allowed_origin_fn(|origin, _| {
+                let b = origin.as_bytes();
+                b.starts_with(b"chrome-extension://") || b.starts_with(b"moz-extension://")
+            });
 
         if let Some(ref origin) = domain_origin_https {
             cors = cors.allowed_origin(origin);
