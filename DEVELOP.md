@@ -2,16 +2,16 @@
 
 ## What This Is
 
-A Tauri desktop app that automates installed browsers on the user's machine — detecting profiles, connecting via CDP (Chrome) and WebDriver BiDi (Firefox), and orchestrating tab/page interactions. The admin-gui is the primary UI; the Rust backend handles browser automation and data.
+A Tauri desktop app that helps users scout and discover content from the web. A companion browser extension connects to the local backend, giving it access to open tabs, DOM content, and page scrolling — without relaunching the browser or triggering any remote-debugging UI.
 
 ## Goals
 
 - Detect installed browsers and their profiles (Chrome, Firefox) from the filesystem
-- Re-launch browsers with remote debugging enabled (user confirms before relaunch)
-- List open tabs, check if a URL/site is already open
-- Read HTML, extract data, scroll pages, capture XHR/fetch responses
-- Click elements, navigate URLs, open new tabs
-- Surface extracted data via the admin-gui
+- List all open tabs with full metadata (title, URL, pinned, active, discarded, tab group)
+- Read HTML/DOM content from any tab via injected content scripts
+- Scroll pages to trigger infinite scroll (briefly activating tab when needed)
+- Open new tabs, activate tabs
+- Surface extracted content via the admin-gui for the user to act on
 
 ## Tech Stack
 
@@ -19,19 +19,59 @@ A Tauri desktop app that automates installed browsers on the user's machine — 
 |---|---|
 | Desktop shell | Tauri 2.x |
 | Backend | Rust + Actix-web |
-| Browser automation | `rustenium` (BiDi + CDP, Chrome & Firefox) |
+| Browser automation | WebExtension (JS/TS, Manifest V3, Chrome + Firefox) |
+| Extension ↔ Backend | WebSocket to `localhost:PORT` |
 | Admin UI | SolidJS + Vite + TailwindCSS + DaisyUI |
 | DB | SQLite (rusqlite + refinery migrations) |
 | Shared types | `shared-types` crate → generated TypeScript via `ts-rs` |
 
-## Browser Automation Notes
+## Browser Extension
 
-- Chrome: CDP via chromedriver. Re-launch with `--remote-debugging-port` + correct `--user-data-dir` + `--profile-directory`.
-- Firefox: WebDriver BiDi natively — no geckodriver needed.
-- Profile discovery: read `Local State` JSON (Chrome) or `profiles.ini` (Firefox) before re-launching.
-- XHR response bodies: use `add_preload_script()` to inject a fetch/XHR monkey-patch since rustenium only intercepts at `BeforeRequestSent`. Re-evaluate if this proves too fragile.
-- Background tab reads work for static HTML; activate the tab when scroll-triggered lazy loading is needed.
-- `rustenium` is early-stage — if blocked, fallback is Playwright as a managed sidecar subprocess.
+The extension is the sole automation layer. It replaces BiDi/CDP entirely — no debug ports, no red address bar, no `navigator.webdriver`.
+
+### Architecture
+
+- **Background service worker** (MV3): maintains a WebSocket connection to the backend, receives commands, dispatches to content scripts, reports results back.
+- **Content scripts**: injected on demand into specific tabs to read DOM or scroll. Run in an isolated world — invisible to page JavaScript.
+
+### Communication Flow
+
+```
+Admin GUI → Backend (REST) → Extension background (WebSocket) → Content script (tab)
+                                                               ← DOM / scroll result
+```
+
+The backend is the command issuer. The extension background worker holds the persistent WebSocket connection and is the bridge into the browser.
+
+### What the Extension Can Do
+
+| Capability | API | Notes |
+|---|---|---|
+| List all tabs (incl. discarded) | `browser.tabs.query({})` | Returns pinned, active, groupId, discarded state |
+| Tab groups | `chrome.tabGroups` (Chrome), Firefox partial | Chrome MV3 only for now |
+| Activate a tab | `browser.tabs.update(id, { active: true })` | Needed for IntersectionObserver-based infinite scroll |
+| Read DOM | `browser.scripting.executeScript()` in isolated world | Page cannot detect this |
+| Scroll page | `document.scrollingElement.scrollTop` via content script | scroll-event sites work in background; IntersectionObserver sites need tab active |
+| Open new tab | `browser.tabs.create({ url })` | |
+
+### Scrolling Strategy
+
+- **First**: inject content script and read whatever is already loaded. No activation needed.
+- **Infinite scroll (scroll-event based)**: set `scrollTop` from background tab — works without activation.
+- **Infinite scroll (IntersectionObserver based, e.g. Reddit new layout)**: briefly activate tab, scroll in increments, read new DOM, switch away. User can be offered a "gentle scroll" option that controls pacing.
+
+### Detection Surface
+
+- Extension itself: not detectable by pages (no web-accessible resources, no DOM injection at rest).
+- DOM reading via content script: not detectable.
+- Scroll via content script: `scrollTop` manipulation is the same as a user scrolling — no detectable difference.
+- No `navigator.webdriver` flag set (unlike BiDi/CDP).
+
+### User Installation
+
+The extension must be installed by the user. The desktop app will guide them to the browser's extension page. For development, the extension is loaded unpacked directly from the repo.
+
+Target: Chrome, Edge, Brave (same extension), Firefox (same codebase, minor API shim).
 
 ## Type-Driven Workflow
 
@@ -48,20 +88,21 @@ Start from `shared-types`, never UI-first.
 ./run-amplify-app.sh   # installs tauri deps, runs cargo tauri dev
 ```
 
-Tauri launches the backend sidecar and starts the admin-gui Vite dev server automatically.
+Load the extension unpacked from `extension/` in your browser's developer mode.
 
 ## Configuration
 
 Priority order: **env var → `project.conf` → `server.env`**
 
 - `AMPLIFY_BACKEND_PATH` — override backend binary location (dev/testing)
-- `project.conf` — local ports, DB path, browser config
+- `project.conf` — local ports, DB path
 - Ports: backend `36960`, admin-gui `36980`
 
 ## Structure
 
-- `backend/` — Rust, Actix-web API + browser automation logic
+- `backend/` — Rust, Actix-web API + content orchestration logic
 - `admin-gui/` — SolidJS frontend (Tauri webview)
+- `extension/` — Browser extension (MV3, Chrome + Firefox)
 - `shared-types/` — Rust types → generated TypeScript
 - `tauri/` — Tauri desktop shell (manages backend sidecar lifecycle)
 - `tauri/scripts/dev-admin-gui.sh` — builds backend binary, starts Vite

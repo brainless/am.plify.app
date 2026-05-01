@@ -3,59 +3,6 @@ use ts_rs::TS;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
-pub struct LaunchBrowserRequest {
-    pub kind: BrowserKind,
-    pub executable: String,
-    /// Chrome family: the user-data-dir root. Unused for Firefox.
-    pub user_data_dir: String,
-    /// Chrome family: profile directory name (e.g. "Default", "Profile 1").
-    /// Firefox: relative or absolute profile path as stored in profiles.ini.
-    pub profile_id: String,
-    /// Absolute filesystem path to the profile directory.
-    pub profile_path: String,
-    /// Preferred debug port. Backend picks a free one if None or if the port is taken.
-    pub debug_port: Option<u16>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct LaunchBrowserResponse {
-    pub debug_port: u16,
-    pub pid: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct ConnectBrowserRequest {
-    pub kind: BrowserKind,
-    pub debug_port: u16,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct ConnectBrowserResponse {
-    pub connection_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct TabInfo {
-    pub context_id: String,
-    pub url: String,
-    pub title: String,
-    pub is_reddit: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct RedditLoginStatus {
-    pub context_id: String,
-    pub is_logged_in: bool,
-    pub username: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
 pub struct HeartbeatResponse {
     pub status: String,
     pub service: String,
@@ -99,4 +46,60 @@ pub struct DetectedBrowser {
 pub struct BrowserStateSnapshot {
     pub browsers: Vec<DetectedBrowser>,
     pub version: u64,
+}
+
+/// Full tab metadata as reported by the browser extension.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct TabInfo {
+    pub id: i64,
+    pub window_id: i64,
+    pub url: String,
+    pub title: String,
+    pub pinned: bool,
+    pub active: bool,
+    pub discarded: bool,
+    /// None means the tab is not in any group.
+    pub group_id: Option<i64>,
+}
+
+/// Whether the browser extension is currently connected via WebSocket.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ExtensionStatus {
+    pub connected: bool,
+}
+
+/// Commands sent from the backend to the extension over WebSocket.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum ToExtension {
+    /// Request a fresh tab list.
+    ListTabs,
+    /// Read the full DOM of a tab.
+    ReadDom { tab_id: i64 },
+    /// Scroll a tab to the given scrollTop value.
+    ScrollTab { tab_id: i64, target_top: i64 },
+    /// Bring a tab to the foreground.
+    ActivateTab { tab_id: i64 },
+    /// Open a new tab at the given URL.
+    OpenTab { url: String },
+}
+
+/// Messages sent from the extension to the backend over WebSocket.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum FromExtension {
+    /// Sent once when the extension connects; identifies which browser it's running in.
+    Connected { browser: String },
+    /// Response to ListTabs, or proactive update when tabs change.
+    TabList { tabs: Vec<TabInfo> },
+    /// Response to ReadDom.
+    DomContent { tab_id: i64, html: String },
+    /// Response to ScrollTab; reports actual scroll position after scrolling.
+    ScrollDone { tab_id: i64, reached_bottom: bool },
+    /// Generic error from the extension.
+    Error { message: String },
 }

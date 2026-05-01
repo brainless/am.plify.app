@@ -11,12 +11,12 @@ db-postgres = ["dep:postgres", "refinery/postgres"]
 [dependencies]
 actix-cors = "0.7"
 actix-web.workspace = true
+actix-ws = "0.3"
 dirs = "5"
+futures-util = "0.3"
 refinery = { version = "0.8", default-features = false }
 postgres = { version = "0.19", optional = true }
 rusqlite = { version = "0.32", features = ["bundled"], optional = true }
-rustenium = { path = "../../rustenium/rustenium" }
-rustenium-bidi-definitions = { path = "../../rustenium/rustenium-bidi-definitions" }
 serde.workspace = true
 serde_json.workspace = true
 shared-types = { path = "../shared-types" }
@@ -24,7 +24,6 @@ sysinfo = "0.33"
 tokio = { version = "1", features = ["sync", "rt", "time", "macros"] }
 tracing = "0.1"
 which = "7"
-uuid = { version = "1", features = ["v4"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"

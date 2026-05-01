@@ -1,4 +1,4 @@
-# App Template
+# Amplify for Founders Template
 
 Minimal fullstack template for typed feature development with coding agents.
 
@@ -81,8 +81,8 @@ cargo run -p shared-types --bin generate_api_types
 2. Run backend:
 
 ```bash
-cargo run -p app-backend --bin migrate
-cargo run -p app-backend
+cargo run -p amplify-backend --bin migrate
+cargo run -p amplify-backend
 ```
 
 `DATABASE_URL` is read from environment first, then `project.conf`.
